@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "Client": {
+      "title": "Client",
+      "description": "Customer information for the convection business",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "company": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "email", "phone", "address", "createdAt"]
+    },
+    "DocumentItem": {
+      "title": "Document Item",
+      "description": "A line item in a document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "description": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unit": { "type": "string" },
+        "price": { "type": "number" },
+        "total": { "type": "number" }
+      },
+      "required": ["id", "description", "quantity", "unit", "price", "total"]
+    },
+    "BusinessDocument": {
+      "title": "Business Document",
+      "description": "Any business document like Invoice, SPK, or Quotation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "docNumber": { "type": "string" },
+        "date": { "type": "number" },
+        "dueDate": { "type": "number" },
+        "clientId": { "type": "string" },
+        "items": { "type": "array", "items": { "$ref": "DocumentItem" } },
+        "subtotal": { "type": "number" },
+        "tax": { "type": "number" },
+        "discount": { "type": "number" },
+        "total": { "type": "number" },
+        "notes": { "type": "string" },
+        "terms": { "type": "string" },
+        "status": { "type": "string", "enum": ["DRAFT", "SENT", "PAID", "CANCELLED"] },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["id", "type", "docNumber", "date", "clientId", "items", "subtotal", "tax", "discount", "total", "status", "createdBy"]
+    },
+    "BusinessProfile": {
+      "title": "Business Profile",
+      "description": "User's convection business information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "website": { "type": "string" },
+        "logo": { "type": "string" },
+        "ownerName": { "type": "string" }
+      },
+      "required": ["name", "address", "phone", "email", "ownerName"]
+    }
+  },
+  "firestore": {
+    "/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Collection of all clients"
+    },
+    "/documents/{documentId}": {
+      "schema": "BusinessDocument",
+      "description": "Collection of all generated documents"
+    },
+    "/profiles/{userId}": {
+      "schema": "BusinessProfile",
+      "description": "Business profile for each user"
+    }
+  }
+}
