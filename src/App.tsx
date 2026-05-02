@@ -191,88 +191,98 @@ export default function App() {
       const element = document.getElementById('document-preview');
       if (!element) return;
 
-      // Configuration for margins (in mm)
-      const margin = 20;
-      const bottomMargin = 25; // Slightly larger for footer
-      
       const canvas = await html2canvas(element, {
-        scale: 2,
+        scale: 3, 
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
         scrollX: 0,
         scrollY: 0,
+        windowWidth: 1200, 
         onclone: (clonedDoc) => {
           const preview = clonedDoc.getElementById('document-preview');
           if (preview) {
+            // Restore proper padding and width for export
             preview.style.margin = '0';
             preview.style.boxShadow = 'none';
-            preview.style.padding = '0 0 10mm 0';
-             
+            preview.style.width = '210mm';
+            preview.style.padding = '20mm'; 
+            preview.style.borderTop = '12px solid #000000';
+            
             const allElements = preview.getElementsByTagName('*');
             for (let i = 0; i < allElements.length; i++) {
               const el = allElements[i] as HTMLElement;
-              el.style.filter = 'none';
-              el.style.backgroundImage = 'none';
-              
               const style = window.getComputedStyle(el);
-              if (style.color.includes('okl') || style.color.includes('var')) {
-                el.style.color = '#334155';
+              
+              const hasBlackBg = el.classList.contains('bg-black') || style.backgroundColor === 'rgb(0, 0, 0)';
+              const hasWhiteText = el.classList.contains('text-white') || style.color === 'rgb(255, 255, 255)';
+
+              if (hasBlackBg) {
+                el.style.backgroundColor = '#000000';
+                if (hasWhiteText) el.style.color = '#ffffff';
+              } else {
+                if (style.color && (style.color.includes('okl') || style.color.includes('var'))) {
+                  el.style.color = '#000000';
+                }
+                if (style.backgroundColor && !style.backgroundColor.includes('rgba(0, 0, 0, 0)') && style.backgroundColor !== 'transparent') {
+                  el.style.backgroundColor = '#ffffff';
+                }
               }
-              if (style.borderColor.includes('okl') || style.borderColor.includes('var')) {
-                el.style.borderColor = '#cbd5e1';
+
+              if (style.borderColor && (style.borderColor.includes('okl') || style.borderColor.includes('var'))) {
+                el.style.borderColor = '#000000';
               }
-              if (style.backgroundColor.includes('okl') || style.backgroundColor.includes('var')) {
-                 if (style.backgroundColor !== 'transparent' && style.backgroundColor !== 'rgba(0, 0, 0, 0)') {
-                   el.style.backgroundColor = '#ffffff';
-                 }
-              }
+
+              el.style.webkitPrintColorAdjust = 'exact';
+              (el.style as any).printColorAdjust = 'exact';
             }
           }
         }
       });
       
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
       const pdf = new jsPDF('p', 'mm', 'a4');
-      
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       
-      const innerWidth = pdfWidth - (margin * 2);
-      const innerHeight = pdfHeight - margin - bottomMargin;
+      // Since padding is now in the canvas, we map full canvas to full PDF width
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
+      const ratio = pdfWidth / canvasWidth;
+      const imgHeightInPdf = canvasHeight * ratio;
       
-      const ratio = innerWidth / canvas.width;
-      const totalImgHeightInPdf = canvas.height * ratio;
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
       
-      let heightLeft = totalImgHeightInPdf;
-      let position = margin;
- 
-      // Cover rectangles helper
-      const addMargins = () => {
-        pdf.setFillColor(255, 255, 255);
-        pdf.rect(0, 0, pdfWidth, margin, 'F'); 
-        pdf.rect(0, pdfHeight - bottomMargin, pdfWidth, bottomMargin, 'F');
-        // Side margins
-        pdf.rect(0, 0, margin, pdfHeight, 'F');
-        pdf.rect(pdfWidth - margin, 0, margin, pdfHeight, 'F');
- 
-        // Add Revision Marker at bottom right of every page
-        if (selectedDoc.revision && selectedDoc.revision > 0) {
-          pdf.setFontSize(7);
-          pdf.setTextColor(203, 213, 225); // slate-300
-          pdf.text(`REV-${selectedDoc.revision}`, pdfWidth - margin, pdfHeight - 8, { align: 'right' });
-        }
-      };
+      // We still want a protective margin for headers/footers in case of multi-page
+      const MT = 10; // Extra buffer top
+      const MB = 15; // Extra buffer bottom (room for page num)
+      const printableHeight = pdfHeight - MB; 
 
-      // Add pages
+      let heightLeft = imgHeightInPdf;
+      let imgOffset = 0;
+      let pageNumber = 1;
+
       while (heightLeft > 0) {
-        if (heightLeft < totalImgHeightInPdf) pdf.addPage();
+        if (pageNumber > 1) pdf.addPage();
         
-        pdf.addImage(imgData, 'JPEG', margin, position, innerWidth, totalImgHeightInPdf);
-        addMargins();
+        // Draw the image. On page 1, imgOffset is 0.
+        pdf.addImage(imgData, 'JPEG', 0, -imgOffset, pdfWidth, imgHeightInPdf);
         
-        heightLeft -= innerHeight;
-        position -= innerHeight;
+        // Protective bottom cover for footer area
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(0, pdfHeight - MB, pdfWidth, MB, 'F');
+        
+        // Footer text
+        pdf.setFontSize(8);
+        pdf.setTextColor(0, 0, 0);
+        pdf.text(`HALAMAN ${pageNumber} • ${selectedDoc.docNumber}`, pdfWidth / 2, pdfHeight - 8, { align: 'center' });
+        
+        if (selectedDoc.revision && selectedDoc.revision > 0) {
+          pdf.text(`REV-${selectedDoc.revision}`, pdfWidth - 15, pdfHeight - 8, { align: 'right' });
+        }
+        
+        heightLeft -= printableHeight;
+        imgOffset += printableHeight;
+        pageNumber++;
       }
       
       pdf.save(`${selectedDoc.docNumber}.pdf`);
@@ -325,12 +335,12 @@ export default function App() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(79,70,229,0.1),transparent_50%)]" />
         <div className="relative z-10 text-center space-y-8 max-w-md px-6">
           <div className="inline-flex flex-col items-center gap-4 mb-4">
-            <div className="w-20 h-20 bg-indigo-600 rounded-[2.5rem] flex items-center justify-center font-bold text-4xl shadow-2xl shadow-indigo-600/40 overflow-hidden ring-4 ring-slate-800">
-              {businessProfile?.logo ? (
-                <img src={businessProfile.logo} alt={businessProfile.name || 'KabulDoc'} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-white">K</span>
-              )}
+            <div className="w-32 h-24 bg-transparent flex items-center justify-center overflow-hidden">
+              <img 
+                src="https://kabulkonveksitas.co.id/wp-content/uploads/2022/01/LOGO-KABUL-KONVEKSI-TAS-full-putih-150x111.png" 
+                alt="KabulDoc Logo" 
+                className="w-full h-full object-contain" 
+              />
             </div>
             <span className="font-black text-4xl tracking-tighter text-white">KabulDoc</span>
           </div>
@@ -602,10 +612,11 @@ export default function App() {
                 </div>
               </div>
               <div className="flex-1 overflow-hidden flex bg-slate-200/50 print:bg-white print:block print:overflow-visible">
-                <div className="flex-1 overflow-y-auto p-8 md:p-12 flex flex-col items-center custom-scrollbar print:p-0 print:overflow-visible print:block">
-                  <div className="min-h-full py-4 print:py-0 print:m-0 print:block">
+                <div className="flex-1 overflow-y-auto p-8 md:p-12 flex flex-col items-center custom-scrollbar print:p-0 print:overflow-visible print:block bg-slate-300/30">
+                  <div className="min-h-full py-12 print:py-0 print:m-0 print:block">
                     <DocumentPreview doc={selectedDoc} profile={businessProfile} />
                   </div>
+                  <div className="h-12 print:hidden" /> {/* Spacer */}
                 </div>
                 
                 {showEmailDraft && (
