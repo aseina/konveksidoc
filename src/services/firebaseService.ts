@@ -6,6 +6,7 @@ import {
   setDoc, 
   doc, 
   query, 
+  where,
   orderBy, 
   onSnapshot, 
   deleteDoc,
@@ -47,10 +48,24 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
+function removeUndefined(obj: any) {
+  const newObj: any = {};
+  Object.keys(obj).forEach((key) => {
+    if (obj[key] !== undefined) {
+      newObj[key] = obj[key];
+    }
+  });
+  return newObj;
+}
+
 export const firebaseService = {
   // Clients
-  subscribeClients: (callback: (clients: Client[]) => void) => {
-    const q = query(collection(db, 'clients'), orderBy('createdAt', 'desc'));
+  subscribeClients: (userId: string, callback: (clients: Client[]) => void) => {
+    const q = query(
+      collection(db, 'clients'), 
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
     return onSnapshot(q, 
       (snapshot) => {
         const clients = snapshot.docs.map(doc => ({ ...doc.data() as Client, id: doc.id }));
@@ -62,15 +77,21 @@ export const firebaseService = {
 
   addClient: async (client: Client) => {
     try {
-      await setDoc(doc(db, 'clients', client.id), client);
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error('User not authenticated');
+      await setDoc(doc(db, 'clients', client.id), removeUndefined({ ...client, userId }));
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `clients/${client.id}`);
     }
   },
 
   // Documents
-  subscribeDocuments: (callback: (docs: BusinessDocument[]) => void) => {
-    const q = query(collection(db, 'documents'), orderBy('date', 'desc'));
+  subscribeDocuments: (userId: string, callback: (docs: BusinessDocument[]) => void) => {
+    const q = query(
+      collection(db, 'documents'), 
+      where('userId', '==', userId),
+      orderBy('date', 'desc')
+    );
     return onSnapshot(q, 
       (snapshot) => {
         const docs = snapshot.docs.map(doc => ({ ...doc.data() as BusinessDocument, id: doc.id }));
@@ -82,9 +103,20 @@ export const firebaseService = {
 
   addDocument: async (document: BusinessDocument) => {
     try {
-      await setDoc(doc(db, 'documents', document.id), document);
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error('User not authenticated');
+      await setDoc(doc(db, 'documents', document.id), removeUndefined({ ...document, userId }));
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `documents/${document.id}`);
+    }
+  },
+
+  updateDocument: async (docId: string, document: Partial<BusinessDocument>) => {
+    try {
+      const docRef = doc(db, 'documents', docId);
+      await updateDoc(docRef, removeUndefined(document));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `documents/${docId}`);
     }
   },
 
@@ -101,7 +133,7 @@ export const firebaseService = {
 
   updateBusinessProfile: async (userId: string, profile: any) => {
     try {
-      await setDoc(doc(db, 'profiles', userId), profile);
+      await setDoc(doc(db, 'profiles', userId), removeUndefined(profile));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `profiles/${userId}`);
     }

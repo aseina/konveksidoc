@@ -48,7 +48,12 @@
         "notes": { "type": "string" },
         "terms": { "type": "string" },
         "status": { "type": "string", "enum": ["DRAFT", "SENT", "PAID", "CANCELLED"] },
-        "createdBy": { "type": "string" }
+        "createdBy": { "type": "string" },
+        "paymentType": { "type": "string", "enum": ["FULL", "DP"] },
+        "dpAmount": { "type": "number" },
+        "dpPercentage": { "type": "number" },
+        "amountPaid": { "type": "number" },
+        "outstandingBalance": { "type": "number" }
       },
       "required": ["id", "type", "docNumber", "date", "clientId", "items", "subtotal", "tax", "discount", "total", "status", "createdBy"]
     },
@@ -63,7 +68,18 @@
         "email": { "type": "string" },
         "website": { "type": "string" },
         "logo": { "type": "string" },
-        "ownerName": { "type": "string" }
+        "ownerName": { "type": "string" },
+        "bankAccounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "bankName": { "type": "string" },
+              "accountNumber": { "type": "string" },
+              "accountHolder": { "type": "string" }
+            }
+          }
+        }
       },
       "required": ["name", "address", "phone", "email", "ownerName"]
     }

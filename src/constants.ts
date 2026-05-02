@@ -26,19 +26,19 @@ export const DOCUMENT_TEMPLATES: Record<DocumentType, { title: string; prefix: s
     closing: "Harap ttd/stempel dokumen ini sebagai bukti serah terima barang yang sah."
   },
   PACKING_LIST: { 
-    title: "PACKING LIST", 
+    title: "DAFTAR RINCIAN BARANG (PACKING LIST)", 
     prefix: "PL",
     opening: "Daftar rincian pengemasan barang untuk memastikan kesesuaian antara isi paket dengan pesanan Anda.",
     closing: "Semua barang telah melalui pengecekan akhir sebelum pengemasan."
   },
   PURCHASE_ORDER: { 
-    title: "PURCHASE ORDER", 
+    title: "PESANAN PEMBELIAN (PURCHASE ORDER)", 
     prefix: "PO",
     opening: "Kami bermaksud memesan barang/bahan dengan rincian di bawah ini untuk mendukung operasional produksi kami.",
     closing: "Mohon konfirmasi kesediaan barang dan estimasi waktu pengiriman sesegera mungkin."
   },
   SALES_ORDER: { 
-    title: "SALES ORDER", 
+    title: "KONFIRMASI PESANAN (SALES ORDER)", 
     prefix: "SO",
     opening: "Konfirmasi pesanan penjualan yang telah kami terima dan akan segera masuk ke dalam antrean jadwal produksi kami.",
     closing: "Proses produksi akan segera dimulai setelah seluruh persyaratan administrasi terpenuhi."
@@ -56,31 +56,31 @@ export const DOCUMENT_TEMPLATES: Record<DocumentType, { title: string; prefix: s
     closing: "Harap informasi ini diperhatikan dan dijalankan dengan penuh tanggung jawab."
   },
   RECEIPT: { 
-    title: "KWITANSI", 
+    title: "KWITANSI PEMBAYARAN", 
     prefix: "KWS",
     opening: "Tanda bukti penerimaan sejumlah dana sebagai pembayaran atas layanan konveksi kami.",
     closing: "Pembayaran telah kami terima secara sah. Terima kasih."
   },
   MOU: { 
-    title: "MEMORANDUM OF UNDERSTANDING", 
+    title: "NOTA KESEPAHAMAN (MoU)", 
     prefix: "MOU",
     opening: "Nota kesepahaman ini merupakan dasar awal untuk menjajaki sinergi bisnis konveksi antara kedua belah pihak.",
     closing: "Kesepakatan ini akan ditindaklanjuti dengan kontrak kerja sama yang lebih rinci di masa mendatang."
   },
   NDA: { 
-    title: "NON-DISCLOSURE AGREEMENT", 
+    title: "PERJANJIAN KERAHASIAAN (NDA)", 
     prefix: "NDA",
     opening: "Pernyataan kerahasiaan untuk melindungi aset desain, pola, dan informasi bisnis lainnya selama proses kerja sama berlangsung.",
     closing: "Pelanggaran terhadap kerahasiaan ini akan diproses sesuai dengan hukum yang berlaku."
   },
   PROPOSAL: { 
-    title: "PROPOSAL PROJECT", 
+    title: "PROPOSAL PROYEK", 
     prefix: "PROP",
     opening: "Pengajuan rencana kerja dan konsep produksi yang kami susun khusus untuk memenuhi visi dan kebutuhan brand/instansi Anda.",
     closing: "Kami sangat antusias untuk mewujudkan project ini bersama Anda."
   },
   SOW: { 
-    title: "SCOPE OF WORK", 
+    title: "LINGKUP KERJA (SOW)", 
     prefix: "SOW",
     opening: "Batasan pekerjaan dan tanggung jawab yang akan dijalankan selama proses produksi konveksi berlangsung.",
     closing: "Penambahan pekerjaan di luar dokumen ini akan didiskusikan kembali sebagai addendum."

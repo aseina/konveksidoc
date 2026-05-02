@@ -60,6 +60,13 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [businessProfile, setBusinessProfile] = useState<BizProfileType | null>(null);
   const [showEmailDraft, setShowEmailDraft] = useState(false);
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Auth Listener
   useEffect(() => {
@@ -78,8 +85,8 @@ export default function App() {
       return;
     }
 
-    const unsubClients = firebaseService.subscribeClients(setClients);
-    const unsubDocs = firebaseService.subscribeDocuments(setDocuments);
+    const unsubClients = firebaseService.subscribeClients(user.uid, setClients);
+    const unsubDocs = firebaseService.subscribeDocuments(user.uid, setDocuments);
 
     // Fetch Profile
     firebaseService.getBusinessProfile(user.uid).then(profile => {
@@ -97,37 +104,77 @@ export default function App() {
 
   const handleUpdateProfile = async (profile: BizProfileType) => {
     if (!user) return;
-    await firebaseService.updateBusinessProfile(user.uid, profile);
-    setBusinessProfile(profile);
-    alert('Profil bisnis berhasil diperbarui!');
+    try {
+      await firebaseService.updateBusinessProfile(user.uid, profile);
+      setBusinessProfile(profile);
+      showToast('Profil bisnis berhasil diperbarui!');
+    } catch (e) {
+      showToast('Gagal memperbarui profil', 'error');
+    }
   };
 
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
+      showToast('Login berhasil!');
     } catch (error) {
       console.error('Login failed:', error);
+      showToast('Gagal login', 'error');
     }
   };
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      showToast('Berhasil keluar');
     } catch (error) {
       console.error('Logout failed:', error);
+      showToast('Gagal logout', 'error');
     }
   };
 
   const handleSaveClient = async (client: Client) => {
-    await firebaseService.addClient(client);
-    setShowClientModal(false);
-    setEditingClient(null);
+    try {
+      await firebaseService.addClient(client);
+      setShowClientModal(false);
+      setEditingClient(null);
+      showToast('Klien berhasil disimpan!');
+    } catch (e) {
+      showToast('Gagal menyimpan klien', 'error');
+    }
   };
 
   const handleSaveDoc = async (doc: BusinessDocument) => {
-    await firebaseService.addDocument(doc);
-    setActiveView('history');
+    try {
+      if (editingDocId) {
+        // Find existing doc to get current revision
+        const existingDoc = documents.find(d => d.id === editingDocId);
+        const currentRevision = existingDoc?.revision || 0;
+        
+        await firebaseService.updateDocument(editingDocId, {
+          ...doc,
+          revision: currentRevision + 1
+        });
+        showToast('Dokumen berhasil diperbarui!');
+      } else {
+        await firebaseService.addDocument({
+          ...doc,
+          revision: 0
+        });
+        showToast('Dokumen berhasil dibuat!');
+      }
+      setEditingDocId(null);
+      setActiveView('history');
+    } catch (e) {
+      showToast(editingDocId ? 'Gagal memperbarui dokumen' : 'Gagal membuat dokumen', 'error');
+    }
+  };
+
+  const handleEditDoc = (doc: BusinessDocument) => {
+    setEditingDocId(doc.id);
+    setSelectedDoc(null); // Close preview if open
+    setActiveView('create-doc');
   };
 
   const exportToPDF = async () => {
@@ -138,54 +185,112 @@ export default function App() {
       const element = document.getElementById('document-preview');
       if (!element) return;
 
+      // Configuration for margins (in mm)
+      const margin = 20;
+      const bottomMargin = 25; // Slightly larger for footer
+      
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         logging: false,
-        windowWidth: 794, // Standard A4 width in pixels approx
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        onclone: (clonedDoc) => {
+          const preview = clonedDoc.getElementById('document-preview');
+          if (preview) {
+            preview.style.margin = '0';
+            preview.style.boxShadow = 'none';
+            preview.style.padding = '0 0 10mm 0';
+             
+            const allElements = preview.getElementsByTagName('*');
+            for (let i = 0; i < allElements.length; i++) {
+              const el = allElements[i] as HTMLElement;
+              el.style.filter = 'none';
+              el.style.backgroundImage = 'none';
+              
+              const style = window.getComputedStyle(el);
+              if (style.color.includes('okl') || style.color.includes('var')) {
+                el.style.color = '#334155';
+              }
+              if (style.borderColor.includes('okl') || style.borderColor.includes('var')) {
+                el.style.borderColor = '#cbd5e1';
+              }
+              if (style.backgroundColor.includes('okl') || style.backgroundColor.includes('var')) {
+                 if (style.backgroundColor !== 'transparent' && style.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+                   el.style.backgroundColor = '#ffffff';
+                 }
+              }
+            }
+          }
+        }
       });
       
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
       const pdf = new jsPDF('p', 'mm', 'a4');
       
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
+      const innerWidth = pdfWidth - (margin * 2);
+      const innerHeight = pdfHeight - margin - bottomMargin;
       
-      const ratio = pdfWidth / imgWidth;
-      const canvasPageHeight = pdfHeight / ratio;
+      const ratio = innerWidth / canvas.width;
+      const totalImgHeightInPdf = canvas.height * ratio;
       
-      let heightLeft = imgHeight;
-      let position = 0;
+      let heightLeft = totalImgHeightInPdf;
+      let position = margin;
+ 
+      // Cover rectangles helper
+      const addMargins = () => {
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(0, 0, pdfWidth, margin, 'F'); 
+        pdf.rect(0, pdfHeight - bottomMargin, pdfWidth, bottomMargin, 'F');
+        // Side margins
+        pdf.rect(0, 0, margin, pdfHeight, 'F');
+        pdf.rect(pdfWidth - margin, 0, margin, pdfHeight, 'F');
+ 
+        // Add Revision Marker at bottom right of every page
+        if (selectedDoc.revision && selectedDoc.revision > 0) {
+          pdf.setFontSize(7);
+          pdf.setTextColor(203, 213, 225); // slate-300
+          pdf.text(`REV-${selectedDoc.revision}`, pdfWidth - margin, pdfHeight - 8, { align: 'right' });
+        }
+      };
 
-      // Add first page
-      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight * ratio);
-      heightLeft -= canvasPageHeight;
-
-      // Add subsequent pages if needed
+      // Add pages
       while (heightLeft > 0) {
-        position = heightLeft - imgHeight; // This moves the image up relative to current page
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position * ratio, pdfWidth, imgHeight * ratio);
-        heightLeft -= canvasPageHeight;
+        if (heightLeft < totalImgHeightInPdf) pdf.addPage();
+        
+        pdf.addImage(imgData, 'JPEG', margin, position, innerWidth, totalImgHeightInPdf);
+        addMargins();
+        
+        heightLeft -= innerHeight;
+        position -= innerHeight;
       }
       
-      pdf.save(`${selectedDoc.docNumber}_${selectedDoc.clientInfo?.name}.pdf`);
+      pdf.save(`${selectedDoc.docNumber}.pdf`);
+      showToast('PDF berhasil diunduh');
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Gagal mengekspor PDF. Silakan coba lagi.');
+      showToast('Gagal mengekspor PDF', 'error');
     } finally {
       setIsExporting(false);
     }
   };
 
+  const handlePrint = () => {
+    window.focus();
+    setTimeout(() => {
+      window.print();
+    }, 250);
+  };
+
   const navItems = [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { id: 'clients', icon: Users, label: 'Klien' },
+    { id: 'dashboard', icon: LayoutDashboard, label: 'Beranda' },
+    { id: 'clients', icon: Users, label: 'Daftar Klien' },
     { id: 'create-doc', icon: FilePlus, label: 'Buat Dokumen' },
-    { id: 'history', icon: History, label: 'Riwayat' },
+    { id: 'history', icon: History, label: 'Riwayat Transaksi' },
     { id: 'settings', icon: Building, label: 'Profil Bisnis' },
   ];
 
@@ -237,9 +342,9 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
-      {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0">
+    <div className="flex min-h-screen bg-slate-50 overflow-visible font-sans print:bg-white print:block">
+      {/* Sidebar - Hidden on print */}
+      <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0 print:hidden">
         <div className="p-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center font-bold text-xl">
@@ -253,7 +358,10 @@ export default function App() {
           {navItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveView(item.id as View)}
+              onClick={() => {
+                setEditingDocId(null);
+                setActiveView(item.id as View);
+              }}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group text-left",
                 activeView === item.id 
@@ -291,15 +399,15 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col relative overflow-hidden">
+      {/* Main Content - Hidden on print if preview is open handled in modal */}
+      <main className={cn("flex-1 flex flex-col relative overflow-hidden", selectedDoc && "print:hidden")}>
         {/* Header */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 z-10">
           <div className="min-w-0">
             <h2 className="text-lg font-bold text-slate-800 tracking-tight truncate">
               {navItems.find(n => n.id === activeView)?.label}
             </h2>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">KonveksiDoc Management</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Manajemen KonveksiDoc</p>
           </div>
           
           <div className="flex items-center gap-4">
@@ -315,8 +423,12 @@ export default function App() {
             </div>
             <button 
               onClick={() => {
-                if (activeView === 'clients') setShowClientModal(true);
-                else setActiveView('create-doc');
+                if (activeView === 'clients') {
+                  setShowClientModal(true);
+                } else {
+                  setEditingDocId(null);
+                  setActiveView('create-doc');
+                }
               }}
               className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 active:scale-95"
             >
@@ -336,7 +448,7 @@ export default function App() {
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
             >
-              {activeView === 'dashboard' && <DashboardView documents={documents} clients={clients} setView={setActiveView} />}
+              {activeView === 'dashboard' && <DashboardView documents={documents} clients={clients} setView={setActiveView} onEdit={handleEditDoc} />}
               {activeView === 'clients' && (
                 <ClientsView 
                   clients={filteredClients} 
@@ -350,11 +462,12 @@ export default function App() {
                   }}
                 />
               )}
-              {activeView === 'history' && <HistoryView documents={filteredDocs} setView={setActiveView} setSelectedDoc={setSelectedDoc} />}
+              {activeView === 'history' && <HistoryView documents={filteredDocs} setView={setActiveView} setSelectedDoc={setSelectedDoc} onEdit={handleEditDoc} />}
               {activeView === 'settings' && businessProfile && (
                 <BusinessProfileForm 
                   initialProfile={businessProfile} 
                   onSave={handleUpdateProfile} 
+                  onError={(msg) => showToast(msg, 'error')}
                 />
               )}
               {activeView === 'create-doc' && (
@@ -363,6 +476,7 @@ export default function App() {
                   onSave={handleSaveDoc} 
                   onPreview={setSelectedDoc} 
                   onAddClient={() => setShowClientModal(true)}
+                  initialData={editingDocId ? documents.find(d => d.id === editingDocId) : null}
                 />
               )}
             </motion.div>
@@ -401,10 +515,10 @@ export default function App() {
         )}
 
         {selectedDoc && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 print:p-0 print:static print:bg-white print:block">
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md print:hidden"
               onClick={() => {
                 setSelectedDoc(null);
                 setShowEmailDraft(false);
@@ -414,9 +528,9 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.98, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.98, y: 30 }}
-              className="relative z-10 bg-slate-100 rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden flex flex-col h-[92vh]"
+              className="relative z-10 bg-slate-100 rounded-3xl w-full max-w-6xl shadow-2xl overflow-hidden flex flex-col h-[92vh] print:h-auto print:max-w-none print:rounded-none print:shadow-none print:bg-white print:m-0 print:overflow-visible print:static print:block"
             >
-              <div className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
+              <div className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0 print:hidden">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
                     <FileText className="w-5 h-5 text-indigo-600" />
@@ -431,10 +545,16 @@ export default function App() {
                     "flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold transition-all",
                     showEmailDraft ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                   )}>
-                    <Send className="w-4 h-4" /> Cover Letter
+                    <Send className="w-4 h-4" /> Surat Pengantar
                   </button>
-                  <button onClick={() => window.print()} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all">
+                  <button onClick={handlePrint} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all">
                     <Printer className="w-4 h-4" /> Cetak
+                  </button>
+                  <button 
+                    onClick={() => handleEditDoc(selectedDoc)}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all"
+                  >
+                    <Pencil className="w-4 h-4" /> Edit
                   </button>
                   <button 
                     disabled={isExporting}
@@ -462,9 +582,9 @@ export default function App() {
                   </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-hidden flex bg-slate-200/50">
-                <div className="flex-1 overflow-y-auto p-8 md:p-12 flex flex-col items-center custom-scrollbar">
-                  <div className="min-h-full py-4 print:p-0">
+              <div className="flex-1 overflow-hidden flex bg-slate-200/50 print:bg-white print:block print:overflow-visible">
+                <div className="flex-1 overflow-y-auto p-8 md:p-12 flex flex-col items-center custom-scrollbar print:p-0 print:overflow-visible print:block">
+                  <div className="min-h-full py-4 print:py-0 print:m-0 print:block">
                     <DocumentPreview doc={selectedDoc} profile={businessProfile} />
                   </div>
                 </div>
@@ -474,8 +594,8 @@ export default function App() {
                     initial={{ x: 400 }} animate={{ x: 0 }}
                     className="w-[400px] bg-white border-l border-slate-200 p-8 flex flex-col"
                   >
-                    <h4 className="font-bold text-slate-800 mb-2">Draft Cover Letter</h4>
-                    <p className="text-xs text-slate-500 mb-6">Salin teks ini untuk dikirimkan melalui email atau WhatsApp.</p>
+                    <h4 className="font-bold text-slate-800 mb-2">Draft Surat Pengantar</h4>
+                    <p className="text-xs text-slate-500 mb-6">Salin teks ini untuk dikirimkan melalui Email atau WhatsApp.</p>
                     <div className="flex-1 bg-slate-50 rounded-2xl p-6 border border-slate-100 text-sm font-medium text-slate-600 leading-relaxed overflow-y-auto whitespace-pre-line">
                       {`Subjek: ${DOCUMENT_LABELS[selectedDoc.type]} - ${selectedDoc.docNumber}\n\nYth. ${selectedDoc.clientInfo?.name},\n${selectedDoc.clientInfo?.company ? `(${selectedDoc.clientInfo.company})\n` : '\n'}
                       Semoga hari Anda menyenangkan.
@@ -498,7 +618,7 @@ export default function App() {
                       onClick={() => {
                         const text = `Subjek: ${DOCUMENT_LABELS[selectedDoc.type]} - ${selectedDoc.docNumber}\n\nYth. ${selectedDoc.clientInfo?.name},\n${selectedDoc.clientInfo?.company ? `(${selectedDoc.clientInfo.company})\n` : '\n'}Semoga hari Anda menyenangkan.\n\nKami dari ${businessProfile?.name || 'tim Konveksi'} ingin mengirimkan dokumen ${DOCUMENT_LABELS[selectedDoc.type].toLowerCase()} terkait rencana kerja sama kita.\n\nDetail Dokumen:\n- No: ${selectedDoc.docNumber}\n- Nama: ${DOCUMENT_LABELS[selectedDoc.type]}\n- Total: ${formatCurrency(selectedDoc.total)}\n\nSilakan periksa detailnya pada lampiran file PDF. Jika ada pertanyaan lebih lanjut, jangan ragu untuk menghubungi kami melalui nomor ${businessProfile?.phone || 'yang tertera'}.\n\nTerima kasih atas kepercayaan Anda.\n\nHormat kami,\n${businessProfile?.name || 'Tim Konveksi'}`;
                         navigator.clipboard.writeText(text);
-                        alert('Draft email berhasil disalin!');
+                        showToast('Draft disalin ke clipboard');
                       }}
                       className="mt-6 w-full py-4 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/10"
                     >
@@ -511,17 +631,38 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className={cn(
+              "fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-xs uppercase tracking-widest border",
+              toast.type === 'success' ? "bg-white text-emerald-600 border-emerald-100" : 
+              toast.type === 'error' ? "bg-white text-red-600 border-red-100" : "bg-white text-indigo-600 border-indigo-100"
+            )}
+          >
+            <div className={cn(
+              "w-2.5 h-2.5 rounded-full animate-pulse",
+              toast.type === 'success' ? "bg-emerald-500" : toast.type === 'error' ? "bg-red-500" : "bg-indigo-500"
+            )} />
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
 // Subcomponents logic
-function DashboardView({ documents, clients, setView }: any) {
+function DashboardView({ documents, clients, setView, onEdit }: any) {
   const stats = [
     { label: 'Total Klien', value: clients.length, icon: Users, color: 'indigo' },
     { label: 'Dokumen Terbit', value: documents.length, icon: FileText, color: 'emerald' },
     { label: 'Estimasi Omzet', value: formatCurrency(documents.reduce((acc: number, d: any) => acc + d.total, 0)), icon: CreditCard, color: 'amber' },
-    { label: 'Project Berjalan', value: documents.filter((d: any) => d.type === 'WORK_ORDER').length, icon: Package, color: 'blue' },
+    { label: 'Proyek Berjalan', value: documents.filter((d: any) => d.type === 'WORK_ORDER').length, icon: Package, color: 'blue' },
   ];
 
   const colors: Record<string, string> = {
@@ -533,14 +674,17 @@ function DashboardView({ documents, clients, setView }: any) {
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         {stats.map((stat) => (
-          <div key={stat.label} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 hover:shadow-xl hover:shadow-indigo-500/5 transition-all group overflow-hidden">
-            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center mb-4 border transition-transform group-hover:scale-110", colors[stat.color])}>
-              <stat.icon className="w-6 h-6" />
+          <div key={stat.label} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 hover:shadow-xl hover:shadow-indigo-500/5 transition-all group overflow-hidden relative">
+            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-150 transition-transform duration-700">
+               <stat.icon className="w-24 h-24" />
             </div>
-            <p className="text-slate-400 text-[9px] font-black uppercase tracking-[0.2em] mb-1">{stat.label}</p>
-            <p className="text-2xl font-black text-slate-900 tracking-tight truncate" title={stat.value.toString()}>{stat.value}</p>
+            <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center mb-6 border transition-all duration-300 group-hover:rotate-6 group-hover:scale-110 shadow-sm", colors[stat.color])}>
+              <stat.icon className="w-7 h-7" />
+            </div>
+            <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.25em] mb-2">{stat.label}</p>
+            <p className="text-2xl font-black text-slate-900 tracking-tight truncate relative z-10" title={stat.value.toString()}>{stat.value}</p>
           </div>
         ))}
       </div>
@@ -567,9 +711,20 @@ function DashboardView({ documents, clients, setView }: any) {
                     <p className="font-bold text-slate-800 text-xs uppercase tracking-tight truncate">{DOCUMENT_LABELS[doc.type as DocumentType]}</p>
                     <p className="text-[10px] text-slate-400 font-bold truncate">Untuk: {doc.clientInfo?.name}</p>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-black text-slate-900 text-xs">{formatCurrency(doc.total)}</p>
-                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter">{format(doc.date, 'dd MMM')}</p>
+                  <div className="text-right shrink-0 flex items-center gap-2">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(doc);
+                      }}
+                      className="p-1.5 text-slate-300 hover:text-indigo-600 hover:bg-white rounded-lg transition-all"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <div>
+                      <p className="font-black text-slate-900 text-xs">{formatCurrency(doc.total)}</p>
+                      <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter">{format(doc.date, 'dd MMM')}</p>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -619,6 +774,35 @@ function DashboardView({ documents, clients, setView }: any) {
 }
 
 function ClientsView({ clients, onAdd, onEdit }: { clients: Client[], onAdd: () => void, onEdit: (client: Client) => void }) {
+  const handleExportCSV = () => {
+    const headers = ['Nama', 'Perusahaan', 'Alamat', 'Email', 'Telepon'];
+    const rows = clients.map(client => [
+      client.name,
+      client.company || '',
+      (client.address || '').replace(/\n/g, ' '),
+      client.email,
+      client.phone
+    ]);
+    
+    // Add BOM for Excel compatibility with UTF-8
+    const csvContent = "\uFEFF" + [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Daftar_Klien_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   if (clients.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-32 text-center">
@@ -634,18 +818,45 @@ function ClientsView({ clients, onAdd, onEdit }: { clients: Client[], onAdd: () 
     );
   }
   return (
-    <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
-      <table className="w-full text-left">
-        <thead className="bg-slate-50/50 border-b border-slate-100 uppercase tracking-tighter text-[9px] font-black text-slate-400">
-          <tr>
-            <th className="px-6 py-4">Klien</th>
-            <th className="px-6 py-4">Kontak</th>
-            <th className="px-6 py-4">Status</th>
-            <th className="px-6 py-4 text-right">Aksi</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-50">
-          {clients.map((client) => (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
+        <div className="flex items-center gap-3 px-2">
+          <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600">
+            <Users className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-slate-800 tracking-tight">Daftar Klien</h3>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{clients.length} Klien Terdaftar</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
+          >
+            <Download className="w-4 h-4" /> Export CSV
+          </button>
+          <button 
+            onClick={onAdd}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/10"
+          >
+            <Plus className="w-4 h-4" /> Tambah Klien
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-slate-50/50 border-b border-slate-100 uppercase tracking-tighter text-[9px] font-black text-slate-400">
+            <tr>
+              <th className="px-6 py-4">Klien</th>
+              <th className="px-6 py-4">Kontak</th>
+              <th className="px-6 py-4">Status</th>
+              <th className="px-6 py-4 text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {clients.map((client) => (
             <tr key={client.id} className="hover:bg-slate-50/50 transition-colors group">
               <td className="px-6 py-4">
                 <div className="flex items-center gap-3 min-w-0">
@@ -692,10 +903,11 @@ function ClientsView({ clients, onAdd, onEdit }: { clients: Client[], onAdd: () 
         </tbody>
       </table>
     </div>
+  </div>
   );
 }
 
-function HistoryView({ documents, setView, setSelectedDoc }: any) {
+function HistoryView({ documents, setView, setSelectedDoc, onEdit }: any) {
   if (documents.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-32 text-center">
@@ -720,7 +932,8 @@ function HistoryView({ documents, setView, setSelectedDoc }: any) {
           <tr>
             <th className="px-6 py-4">Dokumen</th>
             <th className="px-6 py-4">Klien</th>
-            <th className="px-6 py-4">Tanggal</th>
+            <th className="px-6 py-4">Tgl. Terbit</th>
+            <th className="px-6 py-4">Jatuh Tempo</th>
             <th className="px-6 py-4">Total</th>
             <th className="px-6 py-4 text-right">Aksi</th>
           </tr>
@@ -747,15 +960,42 @@ function HistoryView({ documents, setView, setSelectedDoc }: any) {
                 <p className="text-[11px] font-medium text-slate-500">{format(doc.date, 'dd/MM/yyyy')}</p>
               </td>
               <td className="px-6 py-5">
+                {doc.type === 'INVOICE' && doc.dueDate ? (
+                  <div className="flex items-center gap-1.5">
+                    <div className={cn(
+                      "w-1.5 h-1.5 rounded-full",
+                      doc.dueDate < Date.now() ? "bg-red-500 animate-pulse" : "bg-amber-500"
+                    )} />
+                    <p className={cn(
+                      "text-[11px] font-black",
+                      doc.dueDate < Date.now() ? "text-red-500" : "text-amber-600"
+                    )}>
+                      {format(doc.dueDate, 'dd/MM/yyyy')}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-slate-300 font-bold italic">-</p>
+                )}
+              </td>
+              <td className="px-6 py-5">
                 <p className="font-black text-indigo-600 text-sm whitespace-nowrap">{formatCurrency(doc.total)}</p>
               </td>
               <td className="px-6 py-5 text-right">
-                <button 
-                  onClick={() => setSelectedDoc(doc)}
-                  className="px-3 py-1.5 bg-white border border-slate-100 hover:bg-slate-900 hover:text-white text-slate-600 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-sm"
-                >
-                  Preview
-                </button>
+                <div className="flex items-center justify-end gap-2">
+                  <button 
+                    onClick={() => onEdit(doc)}
+                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg transition-all"
+                    title="Edit Dokumen"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button 
+                    onClick={() => setSelectedDoc(doc)}
+                    className="px-3 py-1.5 bg-white border border-slate-100 hover:bg-slate-900 hover:text-white text-slate-600 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-sm"
+                  >
+                    Preview
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

@@ -1,30 +1,66 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Save, Eye, UserPlus, Copy } from 'lucide-react';
 import { Client, DocumentType, DocumentItem, BusinessDocument, DOCUMENT_LABELS, DocumentSection } from '../types';
 import { DOCUMENT_TEMPLATES, UNITS, CONVECTION_SERVICES } from '../constants';
 import { cn, formatCurrency } from '../lib/utils';
 import { v4 as uuidv4 } from 'uuid';
+import { format } from 'date-fns';
+import { id as localeId } from 'date-fns/locale';
 
 interface DocumentFormProps {
   clients: Client[];
   onSave: (doc: BusinessDocument) => void;
   onPreview: (doc: BusinessDocument) => void;
   onAddClient: () => void;
+  initialData?: BusinessDocument | null;
 }
 
-export const DocumentForm: React.FC<DocumentFormProps> = ({ clients, onSave, onPreview, onAddClient }) => {
-  const [docType, setDocType] = useState<DocumentType>('QUOTATION');
-  const [selectedClientId, setSelectedClientId] = useState('');
-  const [items, setItems] = useState<DocumentItem[]>([
+export const DocumentForm: React.FC<DocumentFormProps> = ({ clients, onSave, onPreview, onAddClient, initialData }) => {
+  const [docType, setDocType] = useState<DocumentType>(initialData?.type || 'QUOTATION');
+  const [selectedClientId, setSelectedClientId] = useState(initialData?.clientId || '');
+  const [items, setItems] = useState<DocumentItem[]>(initialData?.items || [
     { id: uuidv4(), description: '', quantity: 1, unit: 'pcs', price: 0, total: 0 }
   ]);
-  const [taxRate, setTaxRate] = useState(0); // in percent
-  const [discount, setDiscount] = useState(0);
-  const [notes, setNotes] = useState('');
-  const [terms, setTerms] = useState('Pembayaran dilakukan 50% di awal dan 50% setelah barang selesai.');
-  const [opening, setOpening] = useState(DOCUMENT_TEMPLATES.QUOTATION.opening || '');
-  const [closing, setClosing] = useState(DOCUMENT_TEMPLATES.QUOTATION.closing || '');
-  const [sections, setSections] = useState<DocumentSection[]>([]);
+  const [taxRate, setTaxRate] = useState(initialData ? (initialData.tax * 100 / initialData.subtotal) : 0); // in percent
+  const [discount, setDiscount] = useState(initialData?.discount || 0);
+  const [notes, setNotes] = useState(initialData?.notes || '');
+  const [terms, setTerms] = useState(initialData?.terms || 'Pembayaran dilakukan 50% di awal dan 50% setelah barang selesai.');
+  const [opening, setOpening] = useState(initialData?.opening || DOCUMENT_TEMPLATES.QUOTATION.opening || '');
+  const [closing, setClosing] = useState(initialData?.closing || DOCUMENT_TEMPLATES.QUOTATION.closing || '');
+  const [sections, setSections] = useState<DocumentSection[]>(initialData?.sections || []);
+  const [dueDate, setDueDate] = useState<number | undefined>(initialData?.dueDate);
+  const [paymentType, setPaymentType] = useState<'FULL' | 'DP' | undefined>(initialData?.paymentType as any);
+  const [amountPaid, setAmountPaid] = useState<number>(initialData?.amountPaid || 0);
+  const [dpPercentage, setDpPercentage] = useState<number>(initialData?.dpPercentage || 0);
+  const [dpAmount, setDpAmount] = useState<number>(initialData?.dpAmount || 0);
+
+  // Automatic Opening adjustment for Invoices (DP vs FULL)
+  useEffect(() => {
+    if (docType === 'INVOICE') {
+      if (paymentType === 'DP') {
+        setOpening("Dokumen ini merupakan tagihan Down Payment (DP) atas pesanan yang telah disepakati. Mohon kesediaannya untuk melakukan pembayaran sesuai rincian di bawah ini agar proses produksi/layanan dapat segera kami mulai.");
+      } else if (paymentType === 'FULL') {
+        setOpening("Terima kasih atas kepercayaan Anda menggunakan layanan kami. Berikut adalah tagihan pelunasan (Full Payment) untuk pesanan/pekerjaan yang telah selesai dilaksanakan sesuai dengan kesepakatan.");
+      }
+    }
+  }, [paymentType, docType]);
+
+  // Automatic Note adjustment for Invoices
+  useEffect(() => {
+    if (docType === 'INVOICE' && dueDate) {
+      const formattedDate = format(dueDate, 'dd MMMM yyyy', { locale: localeId });
+      const reminderText = `Mohon melakukan pembayaran sebelum tanggal ${formattedDate}.`;
+      
+      // If closing already has a reminder, update it, otherwise append it
+      const currentClosing = closing;
+      if (currentClosing.includes('Mohon melakukan pembayaran sebelum tanggal')) {
+        const newClosing = currentClosing.replace(/Mohon melakukan pembayaran sebelum tanggal [^.]+\./, reminderText);
+        setClosing(newClosing);
+      } else {
+        setClosing(`${currentClosing}\n\n${reminderText}`);
+      }
+    }
+  }, [dueDate, docType]);
 
   const isNarrative = ['CONTRACT', 'MOU', 'NDA', 'PROPOSAL', 'MEMO', 'SOW'].includes(docType);
 
@@ -33,6 +69,9 @@ export const DocumentForm: React.FC<DocumentFormProps> = ({ clients, onSave, onP
     setDocType(newType);
     setOpening(DOCUMENT_TEMPLATES[newType].opening || '');
     setClosing(DOCUMENT_TEMPLATES[newType].closing || '');
+    
+    // Reset paymentType if not invoice
+    if (newType !== 'INVOICE') setPaymentType(undefined);
     
     // Add default sections for narrative types if transitioning to one
     if (['CONTRACT', 'MOU', 'NDA', 'PROPOSAL', 'MEMO', 'SOW'].includes(newType)) {
@@ -97,10 +136,10 @@ export const DocumentForm: React.FC<DocumentFormProps> = ({ clients, onSave, onP
     const selectedClient = clients.find(c => c.id === selectedClientId);
     
     const doc: BusinessDocument = {
-      id: uuidv4(),
+      id: initialData?.id || uuidv4(),
       type: docType,
-      docNumber: `${DOCUMENT_TEMPLATES[docType].prefix}-${Date.now().toString().slice(-6)}`,
-      date: Date.now(),
+      docNumber: initialData?.docNumber || `${DOCUMENT_TEMPLATES[docType].prefix}-${Date.now().toString().slice(-6)}`,
+      date: initialData?.date || Date.now(),
       clientId: selectedClientId,
       clientInfo: selectedClient,
       items,
@@ -113,8 +152,16 @@ export const DocumentForm: React.FC<DocumentFormProps> = ({ clients, onSave, onP
       terms,
       opening,
       closing,
-      status: 'DRAFT',
-      createdBy: 'admin'
+      status: initialData?.status || 'DRAFT',
+       createdBy: initialData?.createdBy || 'admin',
+      ...(initialData?.revision !== undefined && { revision: initialData.revision }),
+      ...(docType === 'INVOICE' && dueDate !== undefined && { dueDate }),
+      ...(docType === 'INVOICE' && paymentType !== undefined && { paymentType }),
+      ...(docType === 'INVOICE' && paymentType === 'DP' && { dpAmount, dpPercentage }),
+      ...(docType === 'INVOICE' && { 
+        amountPaid, 
+        outstandingBalance: Math.max(0, (paymentType === 'DP' ? dpAmount : total) - amountPaid) 
+      })
     };
 
     if (action === 'save') onSave(doc);
@@ -128,11 +175,11 @@ export const DocumentForm: React.FC<DocumentFormProps> = ({ clients, onSave, onP
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
           <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
             <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm">1</span>
-            Informasi Dasar
+            Pengaturan Dasar Dokumen
           </h3>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tipe Dokumen</label>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Jenis Dokumen</label>
               <select 
                 value={docType}
                 onChange={(e) => handleDocTypeChange(e.target.value as DocumentType)}
@@ -161,6 +208,87 @@ export const DocumentForm: React.FC<DocumentFormProps> = ({ clients, onSave, onP
                 ))}
               </select>
             </div>
+            {docType === 'INVOICE' && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tenggat Waktu (Due Date)</label>
+                  <input 
+                    type="date"
+                    value={dueDate ? new Date(dueDate).toISOString().split('T')[0] : ''}
+                    onChange={(e) => setDueDate(e.target.value ? new Date(e.target.value).getTime() : undefined)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ket. Invoice</label>
+                  <select 
+                    value={paymentType || ''}
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      setPaymentType(val || undefined);
+                      if (val === 'DP' && dpAmount === 0) {
+                        // Default to 50%
+                        const half = Math.round(total / 2);
+                        setDpAmount(half);
+                        setDpPercentage(50);
+                      }
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="">-- Tanpa Keterangan --</option>
+                    <option value="FULL">Pelunasan (Full)</option>
+                    <option value="DP">Uang Muka (DP)</option>
+                  </select>
+                </div>
+
+                {paymentType === 'DP' && (
+                  <div className="grid grid-cols-2 gap-4 col-span-full md:col-span-1">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">DP (%)</label>
+                      <input 
+                        type="number"
+                        value={dpPercentage || ''}
+                        onChange={(e) => {
+                          const p = Number(e.target.value);
+                          setDpPercentage(p);
+                          setDpAmount(Math.round((total * p) / 100));
+                        }}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nominal DP</label>
+                      <input 
+                        type="number"
+                        value={dpAmount || ''}
+                        onChange={(e) => {
+                          const amt = Number(e.target.value);
+                          setDpAmount(amt);
+                          setDpPercentage(Number(((amt / total) * 100).toFixed(1)));
+                        }}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Jumlah Dibayar</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">Rp</span>
+                    <input 
+                      type="number"
+                      value={amountPaid || ''}
+                      onChange={(e) => setAmountPaid(Number(e.target.value))}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold text-slate-700"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">
+                    Sisa Tagihan: Rp {((paymentType === 'DP' ? dpAmount : total) - amountPaid).toLocaleString('id-ID')}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -168,7 +296,7 @@ export const DocumentForm: React.FC<DocumentFormProps> = ({ clients, onSave, onP
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-bold flex items-center gap-2">
               <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm">2</span>
-              Detail Item & Layanan
+              Rincian Item & Spesifikasi
             </h3>
             <button onClick={addItem} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors">
               <Plus className="w-4 h-4" /> Tambah Baris
@@ -179,12 +307,12 @@ export const DocumentForm: React.FC<DocumentFormProps> = ({ clients, onSave, onP
             {items.map((item, index) => (
               <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 p-3 bg-slate-50 rounded-xl group relative items-start border border-transparent hover:border-slate-200 transition-all">
                 <div className="md:col-span-4 space-y-1.5">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Pekerjaan / Produk</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Nama Item / Pekerjaan</label>
                   <input 
                     list="services"
                     value={item.description}
                     onChange={(e) => updateItem(item.id, 'description', e.target.value)}
-                    placeholder="Deskripsi..."
+                    placeholder="Contoh: Produksi Kaos Polo..."
                     className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold"
                   />
                   <datalist id="services">
@@ -192,16 +320,16 @@ export const DocumentForm: React.FC<DocumentFormProps> = ({ clients, onSave, onP
                   </datalist>
                 </div>
                 <div className="md:col-span-3 space-y-1.5">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Spek Detail</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Spesifikasi Detail</label>
                   <input 
                     value={item.specifications || ''}
                     onChange={(e) => updateItem(item.id, 'specifications', e.target.value)}
-                    placeholder="Bahan, warna..."
+                    placeholder="Bahan, Warna, Sablon, dll..."
                     className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-500/20"
                   />
                 </div>
                 <div className="md:col-span-1 space-y-1.5">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 text-center block">Qty</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 text-center block">Jumlah</label>
                   <input 
                     type="number"
                     value={item.quantity}
@@ -210,7 +338,7 @@ export const DocumentForm: React.FC<DocumentFormProps> = ({ clients, onSave, onP
                   />
                 </div>
                 <div className="md:col-span-1.5 space-y-1.5">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 text-center block">Unit</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 text-center block">Satuan</label>
                   <select 
                     value={item.unit}
                     onChange={(e) => updateItem(item.id, 'unit', e.target.value)}
@@ -396,14 +524,14 @@ export const DocumentForm: React.FC<DocumentFormProps> = ({ clients, onSave, onP
               onClick={() => handleSubmit('preview')}
               className="w-full flex items-center justify-center gap-2 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm tracking-tight hover:bg-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Eye className="w-4 h-4" /> Preview Dokumen
+              <Eye className="w-4 h-4" /> Pratinjau Dokumen
             </button>
             <button 
               disabled={!selectedClientId}
               onClick={() => handleSubmit('save')}
               className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm tracking-tight hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Save className="w-4 h-4" /> Simpan Dokumen
+              <Save className="w-4 h-4" /> Simpan & Terbitkan
             </button>
           </div>
           

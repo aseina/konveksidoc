@@ -58,7 +58,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({ onSave, onCancel, initia
               <input 
                 required
                 type="text" 
-                placeholder="Nama..."
+                placeholder="Masukkan nama lengkap klien..."
                 className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-bold"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -102,7 +102,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({ onSave, onCancel, initia
               <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input 
                 type="text" 
-                placeholder="PT / CV..."
+                placeholder="Contoh: PT Konveksi Sejahtera..."
                 className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-bold"
                 value={formData.company}
                 onChange={(e) => setFormData({ ...formData, company: e.target.value })}
@@ -138,7 +138,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({ onSave, onCancel, initia
             type="submit"
             className="flex-[2] py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2"
           >
-            <Save className="w-4 h-4" /> Simpan Klien
+            <Save className="w-4 h-4" /> Simpan Data Klien
           </button>
         </div>
       </form>

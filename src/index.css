@@ -46,10 +46,6 @@
   --color-amber-500: #f59e0b;
   --color-amber-600: #d97706;
 
-  --color-white: #ffffff;
-  --color-black: #000000;
-  --color-transparent: transparent;
-
   --color-zinc-50: #fafafa;
   --color-zinc-100: #f4f4f5;
   --color-zinc-200: #e4e4e7;
@@ -72,16 +68,121 @@
   --color-gray-800: #1f2937;
   --color-gray-900: #111827;
 
-  /* Force standard color space for PDF tools */
-  --color-white: #ffffff;
-  --color-black: #000000;
+  /* Global PDF Safe Defaults */
+  --tw-ring-color: #6366f1;
+  --tw-shadow-color: rgba(0,0,0,0.1);
+  --tw-outline-color: #6366f1;
+  
+  /* Fallback utilities for html2canvas - explicitly use HEX to bypass parser issues */
+  --pdf-bg: #ffffff;
+  --pdf-text: #1e293b;
+  --pdf-border: #cbd5e1;
+}
+
+@media print {
+  @page {
+    margin: 15mm 15mm 25mm 15mm;
+    size: A4;
+  }
+  body {
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  
+  /* Sembunyikan elemen UI lainnya saat cetak */
+  aside, header, .no-print, button, .shadow-2xl, .bg-slate-900\/60 {
+    display: none !important;
+  }
+
+  /* Pastikan container modal tidak menghalangi */
+  .fixed.inset-0 {
+    position: static !important;
+    display: block !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  .relative.z-10 {
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+    background: white !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  #document-preview {
+    margin: 0 !important;
+    padding: 0 0 10mm 0 !important; /* Bottom padding for the last page footer area */
+    width: 100% !important;
+    max-width: none !important;
+    box-shadow: none !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  /* Hindari pemotongan teks di print */
+  h1, h2, h3, h4, p, span, div, table, tr, td {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    height: auto !important;
+  }
+
+  .print-break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 30px !important;
+    display: block !important;
+  }
+  
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  
+  thead {
+    display: table-header-group;
+  }
+
+  .print-break-before-always {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .print-revision-footer {
+    position: fixed !important;
+    bottom: 8mm !important;
+    right: 15mm !important;
+    display: block !important;
+    z-index: 9999;
+    font-size: 7px !important;
+    color: #94a3b8 !important; /* Slightly darker for better visibility in print */
+    text-align: right;
+  }
+}
+
+.print-revision-footer {
+  position: absolute;
+  bottom: 0.75rem;
+  right: 1.5rem;
+  font-size: 8px;
+  font-weight: 900;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  pointer-events: none;
 }
 
 @layer base {
-  /* Prevent oklab/oklch issues in html2canvas */
+  /* Extreme protection for html2canvas parser */
   *, ::before, ::after {
-    --tw-ring-color: rgba(99, 102, 241, 0.5);
-    --tw-shadow-color: rgba(0, 0, 0, 0.1);
+    border-color: #e2e8f0;
   }
 }
 

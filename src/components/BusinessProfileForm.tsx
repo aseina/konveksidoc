@@ -1,26 +1,34 @@
 import React, { useState, useRef } from 'react';
-import { Building, MapPin, Phone, Mail, Globe, Save, Upload, Image as ImageIcon, X, UserPlus } from 'lucide-react';
+import { Building, MapPin, Phone, Mail, Globe, Save, Upload, Image as ImageIcon, X, UserPlus, CreditCard } from 'lucide-react';
 import { BusinessProfile } from '../types';
 
 interface BusinessProfileFormProps {
   initialProfile: BusinessProfile;
   onSave: (profile: BusinessProfile) => void;
+  onError: (message: string) => void;
 }
 
-export const BusinessProfileForm: React.FC<BusinessProfileFormProps> = ({ initialProfile, onSave }) => {
-  const [profile, setProfile] = useState<BusinessProfile>(initialProfile);
+export const BusinessProfileForm: React.FC<BusinessProfileFormProps> = ({ initialProfile, onSave, onError }) => {
+  const [profile, setProfile] = useState<BusinessProfile>({
+    ...initialProfile,
+    bankAccounts: initialProfile.bankAccounts?.length 
+      ? initialProfile.bankAccounts 
+      : [{ bankName: '', accountNumber: '', accountHolder: '' }]
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(profile);
+    // Filter out empty bank accounts
+    const cleanedBankAccounts = profile.bankAccounts?.filter(acc => acc.bankName || acc.accountNumber) || [];
+    onSave({ ...profile, bankAccounts: cleanedBankAccounts });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 2 * 1024 * 1024) {
-        alert('File terlalu besar. Maksimal 2MB.');
+        onError('File terlalu besar. Maksimal 2MB.');
         return;
       }
       const reader = new FileReader();
@@ -31,8 +39,28 @@ export const BusinessProfileForm: React.FC<BusinessProfileFormProps> = ({ initia
     }
   };
 
+  const handleBankAccountChange = (index: number, field: string, value: string) => {
+    const newAccounts = [...(profile.bankAccounts || [])];
+    newAccounts[index] = { ...newAccounts[index], [field]: value };
+    setProfile({ ...profile, bankAccounts: newAccounts });
+  };
+
+  const addBankAccount = () => {
+    if ((profile.bankAccounts?.length || 0) < 3) {
+      setProfile({
+        ...profile,
+        bankAccounts: [...(profile.bankAccounts || []), { bankName: '', accountNumber: '', accountHolder: '' }]
+      });
+    }
+  };
+
+  const removeBankAccount = (index: number) => {
+    const newAccounts = profile.bankAccounts?.filter((_, i) => i !== index);
+    setProfile({ ...profile, bankAccounts: newAccounts });
+  };
+
   return (
-    <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-100 max-w-xl mx-auto overflow-hidden">
+    <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-100 max-w-xl mx-auto overflow-hidden custom-scrollbar">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white shrink-0">
           <Building className="w-6 h-6" />
@@ -43,7 +71,7 @@ export const BusinessProfileForm: React.FC<BusinessProfileFormProps> = ({ initia
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-6">
         {/* Logo Section */}
         <div className="space-y-3">
           <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Logo Bisnis</label>
@@ -88,7 +116,7 @@ export const BusinessProfileForm: React.FC<BusinessProfileFormProps> = ({ initia
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Owner</label>
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Nama Pemilik Bisnis</label>
             <div className="relative">
               <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
               <input 
@@ -155,12 +183,76 @@ export const BusinessProfileForm: React.FC<BusinessProfileFormProps> = ({ initia
           </div>
         </div>
 
+        {/* Bank Accounts Section */}
+        <div className="space-y-4 pt-4 border-t border-slate-100">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+              <CreditCard className="w-3 h-3 text-indigo-600" />
+              Rekening Bank (Maks. 3)
+            </label>
+            {(profile.bankAccounts?.length || 0) < 3 && (
+              <button 
+                type="button"
+                onClick={addBankAccount}
+                className="text-indigo-600 text-[10px] font-bold hover:underline"
+              >
+                + Tambah Rekening
+              </button>
+            )}
+          </div>
+          
+          <div className="space-y-4">
+            {profile.bankAccounts?.map((account, index) => (
+              <div key={index} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 relative group/bank">
+                {profile.bankAccounts!.length > 1 && (
+                  <button 
+                    type="button"
+                    onClick={() => removeBankAccount(index)}
+                    className="absolute top-2 right-2 p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover/bank:opacity-100 transition-opacity"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Nama Bank</label>
+                    <input 
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none"
+                      placeholder="BCA, Mandiri, dll"
+                      value={account.bankName}
+                      onChange={(e) => handleBankAccountChange(index, 'bankName', e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">No. Rekening</label>
+                    <input 
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none"
+                      placeholder="8830..."
+                      value={account.accountNumber}
+                      onChange={(e) => handleBankAccountChange(index, 'accountNumber', e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Atas Nama</label>
+                  <input 
+                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none"
+                    placeholder="Nama Pemilik Rekening"
+                    value={account.accountHolder}
+                    onChange={(e) => handleBankAccountChange(index, 'accountHolder', e.target.value)}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <button 
           type="submit"
-          className="w-full py-3.5 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-600/10 transition-all active:scale-95 flex items-center justify-center gap-2"
+          className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-600/20 transition-all active:scale-95 flex items-center justify-center gap-2"
         >
           <Save className="w-4 h-4" />
-          Simpan Profil
+          Simpan Selengkapnya
         </button>
       </form>
     </div>

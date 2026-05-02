@@ -16,6 +16,7 @@ export type DocumentType =
 
 export interface Client {
   id: string;
+  userId?: string; // Added for multi-user support
   name: string;
   email: string;
   phone: string;
@@ -34,6 +35,12 @@ export interface DocumentItem {
   total: number;
 }
 
+export interface BankAccount {
+  bankName: string;
+  accountNumber: string;
+  accountHolder: string;
+}
+
 export interface BusinessProfile {
   name: string;
   address: string;
@@ -42,6 +49,7 @@ export interface BusinessProfile {
   website?: string;
   logo?: string;
   ownerName?: string;
+  bankAccounts?: BankAccount[];
 }
 
 export interface DocumentSection {
@@ -52,6 +60,7 @@ export interface DocumentSection {
 
 export interface BusinessDocument {
   id: string;
+  userId?: string; // Added for multi-user support
   type: DocumentType;
   docNumber: string;
   date: number;
@@ -70,21 +79,27 @@ export interface BusinessDocument {
   closing?: string;
   status: 'DRAFT' | 'SENT' | 'PAID' | 'CANCELLED';
   createdBy: string;
+  revision?: number;
+  paymentType?: 'FULL' | 'DP';
+  dpAmount?: number;
+  dpPercentage?: number;
+  amountPaid?: number;
+  outstandingBalance?: number;
 }
 
 export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   QUOTATION: 'Penawaran Harga (Quotation)',
-  INVOICE: 'Tagihan (Invoice)',
+  INVOICE: 'Tagihan / Faktur (Invoice)',
   WORK_ORDER: 'Surat Perintah Kerja (SPK)',
   DELIVERY_ORDER: 'Surat Jalan (DO)',
-  PACKING_LIST: 'Packing List',
-  PURCHASE_ORDER: 'Purchase Order (PO)',
-  SALES_ORDER: 'Sales Order (SO)',
+  PACKING_LIST: 'Daftar Barang (Packing List)',
+  PURCHASE_ORDER: 'Pesanan Pembelian (PO)',
+  SALES_ORDER: 'Pesanan Penjualan (SO)',
   CONTRACT: 'Kontrak Kerjasama',
   MEMO: 'Memo Internal',
-  RECEIPT: 'Kwitansi (Receipt)',
-  MOU: 'Memorandum of Understanding (MoU)',
-  NDA: 'Non-Disclosure Agreement (NDA)',
-  PROPOSAL: 'Proposal Project',
-  SOW: 'Scope of Work (SOW)',
+  RECEIPT: 'Kwitansi Pembayaran (Receipt)',
+  MOU: 'Nota Kesepahaman (MoU)',
+  NDA: 'Perjanjian Non-Disclosure (NDA)',
+  PROPOSAL: 'Proposal Proyek',
+  SOW: 'Lingkup Kerja (SOW)',
 };

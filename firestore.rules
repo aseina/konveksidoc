@@ -28,23 +28,28 @@ service cloud.firestore {
       return data.keys().hasAll(['id', 'type', 'docNumber', 'date', 'clientId', 'items', 'subtotal', 'tax', 'discount', 'total', 'status', 'createdBy']) &&
              data.items is list && data.items.size() > 0 &&
              data.total is number && data.total >= 0 &&
-             data.status in ['DRAFT', 'SENT', 'PAID', 'CANCELLED'];
+             data.status in ['DRAFT', 'SENT', 'PAID', 'CANCELLED'] &&
+             (!('paymentType' in data) || data.paymentType in ['FULL', 'DP']) &&
+             (!('dpAmount' in data) || data.dpAmount is number) &&
+             (!('dpPercentage' in data) || data.dpPercentage is number) &&
+             (!('amountPaid' in data) || data.amountPaid is number) &&
+             (!('outstandingBalance' in data) || data.outstandingBalance is number);
     }
 
     // Clients Collection
     match /clients/{clientId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(clientId) && isValidClient(request.resource.data);
-      allow update: if isSignedIn() && isValidClient(request.resource.data);
-      allow delete: if isSignedIn();
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(clientId) && request.resource.data.userId == request.auth.uid && isValidClient(request.resource.data);
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid && isValidClient(request.resource.data);
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
     // Documents Collection
     match /documents/{documentId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(documentId) && isValidDocument(request.resource.data);
-      allow update: if isSignedIn() && isValidDocument(request.resource.data);
-      allow delete: if isSignedIn();
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(documentId) && request.resource.data.userId == request.auth.uid && isValidDocument(request.resource.data);
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid && isValidDocument(request.resource.data);
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
     // Profiles Collection
