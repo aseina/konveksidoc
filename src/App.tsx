@@ -318,19 +318,19 @@ export default function App() {
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-900 overflow-hidden font-sans relative">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(79,70,229,0.1),transparent_50%)]" />
         <div className="relative z-10 text-center space-y-8 max-w-md px-6">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-16 h-16 bg-indigo-600 rounded-[2rem] flex items-center justify-center font-bold text-3xl shadow-2xl shadow-indigo-600/40 overflow-hidden">
+          <div className="inline-flex flex-col items-center gap-4 mb-4">
+            <div className="w-20 h-20 bg-indigo-600 rounded-[2.5rem] flex items-center justify-center font-bold text-4xl shadow-2xl shadow-indigo-600/40 overflow-hidden ring-4 ring-slate-800">
               {businessProfile?.logo ? (
-                <img src={businessProfile.logo} alt={businessProfile.name || 'Logo'} className="w-full h-full object-cover" />
+                <img src={businessProfile.logo} alt={businessProfile.name || 'KabulDoc'} className="w-full h-full object-cover" />
               ) : (
-                (businessProfile?.name || 'K').charAt(0).toUpperCase()
+                "K"
               )}
             </div>
-            <span className="font-black text-4xl tracking-tighter text-white">{businessProfile?.name || 'KonveksiDoc'}</span>
+            <span className="font-black text-4xl tracking-tighter text-white">KabulDoc</span>
           </div>
           <div className="space-y-4">
-            <h1 className="text-3xl font-black text-white leading-tight">Kelola Dokumen Bisnis Konveksi Anda</h1>
-            <p className="text-slate-400 font-medium leading-relaxed">Sistem otomatis generate Invoice, SPK, dan Penawaran Harga dalam satu klik.</p>
+            <h1 className="text-3xl font-black text-white leading-tight">Sistem Manajemen Dokumen Kabul Konveksi Tas</h1>
+            <p className="text-slate-400 font-medium leading-relaxed">Sistem otomatis generate Penawaran, SPK, dan Invoice untuk Kabul Konveksi Tas.</p>
           </div>
           <button 
             onClick={handleLogin}
@@ -339,7 +339,12 @@ export default function App() {
             <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
             Masuk dengan Google
           </button>
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] pt-4">Gratis • Aman • Cepat</p>
+          
+          <div className="pt-8 border-t border-slate-800/50">
+            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em]">
+              Developed by <a href="https://www.sulissetyo.com/" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 transition-colors">Sulis Setyo</a>
+            </p>
+          </div>
         </div>
       </div>
     );
