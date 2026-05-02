@@ -308,7 +308,7 @@ export default function App() {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-900 text-white font-sans">
         <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-6" />
-        <p className="font-bold tracking-widest uppercase text-xs opacity-50">Memuat KonveksiDoc...</p>
+        <p className="font-bold tracking-widest uppercase text-xs opacity-50">Menyiapkan Aplikasi...</p>
       </div>
     );
   }
@@ -319,10 +319,14 @@ export default function App() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(79,70,229,0.1),transparent_50%)]" />
         <div className="relative z-10 text-center space-y-8 max-w-md px-6">
           <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-16 h-16 bg-indigo-600 rounded-[2rem] flex items-center justify-center font-bold text-3xl shadow-2xl shadow-indigo-600/40">
-              K
+            <div className="w-16 h-16 bg-indigo-600 rounded-[2rem] flex items-center justify-center font-bold text-3xl shadow-2xl shadow-indigo-600/40 overflow-hidden">
+              {businessProfile?.logo ? (
+                <img src={businessProfile.logo} alt={businessProfile.name || 'Logo'} className="w-full h-full object-cover" />
+              ) : (
+                (businessProfile?.name || 'K').charAt(0).toUpperCase()
+              )}
             </div>
-            <span className="font-black text-4xl tracking-tighter text-white">KonveksiDoc</span>
+            <span className="font-black text-4xl tracking-tighter text-white">{businessProfile?.name || 'KonveksiDoc'}</span>
           </div>
           <div className="space-y-4">
             <h1 className="text-3xl font-black text-white leading-tight">Kelola Dokumen Bisnis Konveksi Anda</h1>
@@ -347,10 +351,14 @@ export default function App() {
       <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0 print:hidden">
         <div className="p-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center font-bold text-xl">
-              K
+            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center font-bold text-xl overflow-hidden shrink-0">
+              {businessProfile?.logo ? (
+                <img src={businessProfile.logo} alt={businessProfile.name || 'Logo'} className="w-full h-full object-cover" />
+              ) : (
+                (businessProfile?.name || 'K').charAt(0).toUpperCase()
+              )}
             </div>
-            <span className="font-bold text-xl tracking-tight">KonveksiDoc</span>
+            <span className="font-bold text-xl tracking-tight truncate">{businessProfile?.name || 'KonveksiDoc'}</span>
           </div>
         </div>
 
@@ -407,7 +415,7 @@ export default function App() {
             <h2 className="text-lg font-bold text-slate-800 tracking-tight truncate">
               {navItems.find(n => n.id === activeView)?.label}
             </h2>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Manajemen KonveksiDoc</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Manajemen {businessProfile?.name || 'KonveksiDoc'}</p>
           </div>
           
           <div className="flex items-center gap-4">
