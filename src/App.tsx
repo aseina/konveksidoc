@@ -58,7 +58,10 @@ export default function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [businessProfile, setBusinessProfile] = useState<BizProfileType | null>(null);
+  const [businessProfile, setBusinessProfile] = useState<BizProfileType | null>(() => {
+    const cached = localStorage.getItem('kabuldoc_profile_cache');
+    return cached ? JSON.parse(cached) : null;
+  });
   const [showEmailDraft, setShowEmailDraft] = useState(false);
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -90,9 +93,12 @@ export default function App() {
 
     // Fetch Profile
     firebaseService.getBusinessProfile(user.uid).then(profile => {
-      if (profile) setBusinessProfile(profile);
-      else {
-        setBusinessProfile({ name: '', address: '', phone: '', email: user.email || '' });
+      if (profile) {
+        setBusinessProfile(profile);
+        localStorage.setItem('kabuldoc_profile_cache', JSON.stringify(profile));
+      } else {
+        const defaultProfile = { name: '', address: '', phone: '', email: user.email || '' };
+        setBusinessProfile(defaultProfile);
       }
     });
 
@@ -323,7 +329,7 @@ export default function App() {
               {businessProfile?.logo ? (
                 <img src={businessProfile.logo} alt={businessProfile.name || 'KabulDoc'} className="w-full h-full object-cover" />
               ) : (
-                "K"
+                <span className="text-white">K</span>
               )}
             </div>
             <span className="font-black text-4xl tracking-tighter text-white">KabulDoc</span>
